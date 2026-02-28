@@ -1,0 +1,42 @@
+[project]
+name = "transformer-training-experimentation-pipeline"
+version = "0.1.0"
+description = "Scalable Transformer Training & Experimentation Pipeline with MLflow and Ray"
+requires-python = ">=3.11"
+dependencies = [
+    "datasets>=4.8.4",
+    "mlflow>=3.10.1",
+    "psutil>=7.2.2",
+    "pydantic>=2.12.5",
+    "pyyaml>=6.0.3",
+    "ray[default]>=2.54.1",
+    "rich>=14.3.3",
+    "scikit-learn>=1.8.0",
+    "torch>=2.11.0",
+    "transformers>=5.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "slow: marks tests that require model downloads or full training runs (deselect with '-m \"not slow\"')",
+]
+filterwarnings = [
+    "ignore::FutureWarning:mlflow",
+    "ignore::UserWarning:sklearn",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pipeline"]
+

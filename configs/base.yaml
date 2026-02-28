@@ -1,0 +1,26 @@
+model:
+  type: huggingface
+  name: distilbert-base-uncased
+
+training:
+  learning_rate: 2e-5
+  batch_size: 16
+  epochs: 3
+  optimizer: adamw
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  seed: 42
+  # early_stopping_patience: 2
+
+data:
+  dataset_name: ag_news
+  max_length: 128
+  # only subset of dataset for quick experimentation
+  subsample_train: 2000
+  subsample_val: 400
+
+experiment:
+  name: baseline
+  output_dir: checkpoints
+  mlflow_tracking_uri: mlruns
+  mlflow_experiment_name: transformer-pipeline

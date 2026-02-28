@@ -1,0 +1,75 @@
+- model:
+    type: huggingface
+    name: distilbert-base-uncased
+  training:
+    learning_rate: 1.0e-5
+    batch_size: 16
+    epochs: 3
+    seed: 42
+  data:
+    dataset_name: ag_news
+    max_length: 128
+    subsample_train: 2000
+    subsample_val: 400
+  experiment:
+    name: lr_sweep_1e5
+    output_dir: checkpoints
+    mlflow_tracking_uri: mlruns
+    mlflow_experiment_name: lr-sweep
+
+- model:
+    type: huggingface
+    name: distilbert-base-uncased
+  training:
+    learning_rate: 2.0e-5
+    batch_size: 16
+    epochs: 3
+    seed: 42
+  data:
+    dataset_name: ag_news
+    max_length: 128
+    subsample_train: 2000
+    subsample_val: 400
+  experiment:
+    name: lr_sweep_2e5
+    output_dir: checkpoints
+    mlflow_tracking_uri: mlruns
+    mlflow_experiment_name: lr-sweep
+
+- model:
+    type: huggingface
+    name: distilbert-base-uncased
+  training:
+    learning_rate: 3.0e-5
+    batch_size: 16
+    epochs: 3
+    seed: 42
+  data:
+    dataset_name: ag_news
+    max_length: 128
+    subsample_train: 2000
+    subsample_val: 400
+  experiment:
+    name: lr_sweep_3e5
+    output_dir: checkpoints
+    mlflow_tracking_uri: mlruns
+    mlflow_experiment_name: lr-sweep
+
+- model:
+    type: huggingface
+    name: distilbert-base-uncased
+  training:
+    learning_rate: 5.0e-5
+    batch_size: 16
+    epochs: 3
+    seed: 42
+  data:
+    dataset_name: ag_news
+    max_length: 128
+    subsample_train: 2000
+    subsample_val: 400
+  experiment:
+    name: lr_sweep_5e5
+    output_dir: checkpoints
+    mlflow_tracking_uri: mlruns
+    mlflow_experiment_name: lr-sweep

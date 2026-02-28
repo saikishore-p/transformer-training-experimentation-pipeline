@@ -1,0 +1,37 @@
+- model:
+    type: huggingface
+    name: distilbert-base-uncased
+  training:
+    learning_rate: 2.0e-5
+    batch_size: 16
+    epochs: 3
+    seed: 42
+  data:
+    dataset_name: ag_news
+    max_length: 128
+    subsample_train: 2000
+    subsample_val: 400
+  experiment:
+    name: model_cmp_distilbert
+    output_dir: checkpoints
+    mlflow_tracking_uri: mlruns
+    mlflow_experiment_name: model-comparison
+
+- model:
+    type: huggingface
+    name: distilroberta-base
+  training:
+    learning_rate: 2.0e-5
+    batch_size: 16
+    epochs: 3
+    seed: 42
+  data:
+    dataset_name: ag_news
+    max_length: 128
+    subsample_train: 2000
+    subsample_val: 400
+  experiment:
+    name: model_cmp_distilroberta
+    output_dir: checkpoints
+    mlflow_tracking_uri: mlruns
+    mlflow_experiment_name: model-comparison
