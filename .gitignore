@@ -9,9 +9,16 @@ wheels/
 # Virtual environments
 .venv
 
-# ML artifacts (can be large)
+# ML artifacts (can be large / machine-specific)
 mlruns/
 checkpoints/
+
+# Sweep output files written by run_sweep.py
+sweep_results*.json
+
+# Ray temporary files (worker logs, spill storage, dashboard data)
+/tmp/ray/
+ray_spill/
 
 # macOS
 .DS_Store
@@ -23,4 +30,16 @@ checkpoints/
 # Test coverage
 .coverage
 htmlcov/
+.pytest_cache/
 
+# uv / hatch build cache
+.cache/
+*.dist-info/
+
+# Jupyter notebooks (if you experiment interactively)
+.ipynb_checkpoints/
+*.ipynb
+
+# Secrets / local env overrides (never commit these)
+.env
+.env.local

@@ -10,10 +10,11 @@ MPS notes:
   - All tensors are moved to device inside the loop, not at dataset level
   - FORCE_CPU=1 env-var lets you bypass MPS if an op is unsupported
 """
+
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
+import time
 
 import psutil
 import torch
@@ -31,12 +32,13 @@ from pipeline.training.utils import get_device, set_seed
 @dataclass
 class TrainingResult:
     """Captures everything produced by a completed training run."""
+
     best_val_loss: float
     best_val_accuracy: float
-    best_epoch: int                   # 1-indexed epoch where best val was reached
+    best_epoch: int  # 1-indexed epoch where best val was reached
     total_time_seconds: float
-    samples_per_second: float         # averaged over all training epochs
-    checkpoint_path: str | None       # path to best saved checkpoint, or None
+    samples_per_second: float  # averaged over all training epochs
+    checkpoint_path: str | None  # path to best saved checkpoint, or None
     per_epoch_metrics: list[dict] = field(default_factory=list)
 
 
@@ -57,7 +59,7 @@ def _build_optimizer(
 
 def _peak_memory_mb() -> float:
     """Current process RSS in MB (cross-platform; works on MPS and CPU)."""
-    return psutil.Process().memory_info().rss / (1024 ** 2)
+    return psutil.Process().memory_info().rss / (1024**2)
 
 
 class Trainer:
@@ -135,12 +137,8 @@ class Trainer:
         total_samples_trained = 0
         run_start = time.perf_counter()
 
-        early_stopper = next(
-            (cb for cb in self._callbacks if isinstance(cb, EarlyStopping)), None
-        )
-        ckpt_saver = next(
-            (cb for cb in self._callbacks if isinstance(cb, CheckpointSaver)), None
-        )
+        early_stopper = next((cb for cb in self._callbacks if isinstance(cb, EarlyStopping)), None)
+        ckpt_saver = next((cb for cb in self._callbacks if isinstance(cb, CheckpointSaver)), None)
 
         for epoch in range(1, self._config.epochs + 1):
             epoch_start = time.perf_counter()
@@ -183,15 +181,15 @@ class Trainer:
                 break
 
         total_time = time.perf_counter() - run_start
-        avg_samples_per_sec = (
-            total_samples_trained / total_time if total_time > 0 else 0.0
-        )
+        avg_samples_per_sec = total_samples_trained / total_time if total_time > 0 else 0.0
 
         # Log summary system metrics
-        self._tracker.log_metrics({
-            "total_training_time_seconds": total_time,
-            "peak_memory_mb": _peak_memory_mb(),
-        })
+        self._tracker.log_metrics(
+            {
+                "total_training_time_seconds": total_time,
+                "peak_memory_mb": _peak_memory_mb(),
+            }
+        )
 
         return TrainingResult(
             best_val_loss=best_val_loss,

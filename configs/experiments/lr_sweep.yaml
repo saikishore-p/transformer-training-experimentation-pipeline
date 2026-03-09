@@ -1,3 +1,6 @@
+# Learning rate sweep — 4 runs varying lr, all other params fixed
+# Run with: uv run python scripts/run_sweep.py --sweep configs/experiments/lr_sweep.yaml
+
 - model:
     type: huggingface
     name: distilbert-base-uncased

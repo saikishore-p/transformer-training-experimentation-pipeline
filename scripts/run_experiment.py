@@ -1,9 +1,19 @@
+"""
+Run a single experiment from a YAML config file.
+
+Usage:
+    uv run python scripts/run_experiment.py --config configs/experiments/baseline.yaml
+    uv run python scripts/run_experiment.py --config configs/experiments/baseline.yaml --registry checkpoints/registry.json
+"""
+
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
+# Ensure src/ is on the path when running as a script (uv handles this via
+# pythonpath in pyproject.toml, but explicit is safer for direct invocation)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from pipeline.config import load_config
@@ -14,6 +24,12 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a single transformer training experiment.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  uv run python scripts/run_experiment.py --config configs/experiments/baseline.yaml
+  uv run python scripts/run_experiment.py --config configs/experiments/baseline.yaml \\
+      --registry checkpoints/my_registry.json
+        """,
     )
     parser.add_argument(
         "--config",
@@ -41,8 +57,9 @@ def main() -> None:
     config = load_config(config_path)
     result = run_pipeline(config, registry_path=args.registry)
 
+    # Exit with non-zero if a regression was detected (useful for CI)
     if result.get("regression_detected"):
-        sys.exit(2)  # non-zero for regression detected
+        sys.exit(2)
 
 
 if __name__ == "__main__":

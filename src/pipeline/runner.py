@@ -1,9 +1,18 @@
+"""
+Core pipeline orchestration logic.
+
+`run_pipeline()` is the single function that executes one full experiment:
+  data → model → train → evaluate → track → registry → regression check
+
+Both the CLI script (run_experiment.py) and the Ray sweep runner
+(run_sweep.py) call this function — keeping the logic in one place.
+"""
+
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
+import tempfile
 
 from rich.console import Console
 from rich.rule import Rule
@@ -54,6 +63,10 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
         Summary dict with run_id, experiment_name, test_accuracy, regression_detected.
     """
     _print_header(config)
+
+    # ------------------------------------------------------------------ #
+    # 1. Data
+    # ------------------------------------------------------------------ #
     _console.print("[bold cyan]▶ Loading dataset…[/bold cyan]")
     splits = load_dataset_splits(config.data, seed=config.training.seed)
     num_labels = get_num_labels(splits)
@@ -66,6 +79,10 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
         f"test={data_meta['num_test']:,}  "
         f"labels={num_labels}"
     )
+
+    # ------------------------------------------------------------------ #
+    # 2. Model
+    # ------------------------------------------------------------------ #
     _console.print("[bold cyan]▶ Building model…[/bold cyan]")
     model_wrapper = create_model(config.model, num_labels=num_labels)
     device = get_device()
@@ -74,16 +91,23 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
         f"params={model_wrapper.get_num_parameters():,}  |  "
         f"device={device}"
     )
+
+    # ------------------------------------------------------------------ #
+    # 3–7. Train + Evaluate inside MLflow run
+    # ------------------------------------------------------------------ #
     registry_path = registry_path or f"{config.experiment.output_dir}/registry.json"
     registry = ModelRegistry(registry_path)
 
     with MLflowTracker(config.experiment, run_name=config.experiment.name) as tracker:
         run_id = tracker.run_id
+
+        # ---- Params ----
         params = {**config.to_flat_dict(), **data_meta}
         params["model.num_parameters"] = model_wrapper.get_num_parameters()
         params["device"] = str(device)
         tracker.log_params(params)
 
+        # ---- Train ----
         _console.print("[bold cyan]▶ Training…[/bold cyan]")
         tokenized = tokenize_splits(splits, model_wrapper.get_tokenizer(), config.data)
         callbacks = _build_callbacks(config)
@@ -103,6 +127,7 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
             f"time={training_result.total_time_seconds:.1f}s"
         )
 
+        # ---- Evaluate ----
         _console.print("[bold cyan]▶ Evaluating on test set…[/bold cyan]")
         evaluator = Evaluator(
             model_wrapper=model_wrapper,
@@ -117,14 +142,19 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
             f"time={eval_result.evaluation_time_seconds:.2f}s"
         )
 
+        # ---- Log eval metrics ----
         tracker.log_metrics(eval_result.summary_metrics())
-        tracker.log_metrics({
-            "best_val_accuracy": training_result.best_val_accuracy,
-            "best_epoch": float(training_result.best_epoch),
-        })
+        tracker.log_metrics(
+            {
+                "best_val_accuracy": training_result.best_val_accuracy,
+                "best_epoch": float(training_result.best_epoch),
+            }
+        )
 
+        # ---- Log artifacts ----
         _log_artifacts(tracker, config, eval_result, training_result)
 
+        # ---- Register ----
         _console.print("[bold cyan]▶ Registering model…[/bold cyan]")
         ckpt_path = training_result.checkpoint_path or "no_checkpoint"
         registry.register(
@@ -140,6 +170,7 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
             num_parameters=model_wrapper.get_num_parameters(),
         )
 
+        # ---- Regression detection ----
         _console.print("[bold cyan]▶ Checking for regression…[/bold cyan]")
         detector = RegressionDetector(registry)
         regression_result = detector.check(eval_result.accuracy, run_id=run_id)
@@ -148,6 +179,7 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
         tracker.set_tags(regression_result.to_mlflow_tags())
         tracker.log_dict(regression_result.to_dict(), "regression_result.json")
 
+    # ---- Final summary ----
     _print_summary(config, run_id, eval_result, training_result, regression_result)
 
     return {
@@ -158,6 +190,11 @@ def run_pipeline(config: PipelineConfig, registry_path: str | None = None) -> di
         "regression_detected": regression_result.regression_detected,
         "status": "completed",
     }
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
 def _build_callbacks(config: PipelineConfig) -> list:
@@ -215,7 +252,9 @@ def _print_summary(config, run_id, eval_result, training_result, regression_resu
     table.add_row("Training Time", f"{training_result.total_time_seconds:.1f}s")
     table.add_row(
         "Regression",
-        "[bold red]YES[/bold red]" if regression_result.regression_detected else "[bold green]NO[/bold green]",
+        "[bold red]YES[/bold red]"
+        if regression_result.regression_detected
+        else "[bold green]NO[/bold green]",
     )
     _console.print(table)
     _console.print(

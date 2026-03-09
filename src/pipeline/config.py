@@ -1,12 +1,21 @@
+"""
+Config system for the training pipeline.
+
+All experiments are driven by YAML config files validated via Pydantic v2.
+Every run is fully reproducible from its config alone.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
-import yaml
+
 from pydantic import BaseModel, Field, field_validator
+import yaml
 
 
 class ModelConfig(BaseModel):
+    # "custom" support will be added in a later phase (Mode B — custom GPT-2)
     type: Literal["huggingface"] = "huggingface"
     name: str = "distilbert-base-uncased"
 

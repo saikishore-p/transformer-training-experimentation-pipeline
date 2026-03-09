@@ -1,7 +1,16 @@
+"""
+Cross-run reporting: compare all registered experiments and surface
+the best/worst models, average accuracy, and per-parameter impact.
+
+generate_summary_report()  — builds a SummaryReport from the registry
+print_summary_table()      — renders a rich table to stdout
+save_summary_json()        — writes machine-readable JSON for downstream tooling
+"""
+
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass, field
+import json
 from statistics import mean, stdev
 
 from rich.console import Console
@@ -16,30 +25,32 @@ _console = Console()
 @dataclass
 class RunSummary:
     """Distilled view of one registry entry for reporting purposes."""
+
     rank: int
     experiment_name: str
     model_name: str
     test_accuracy: float
     test_f1: float
     val_accuracy: float
-    learning_rate: str       # extracted from config_snapshot
+    learning_rate: str  # extracted from config_snapshot
     batch_size: str
     epochs: str
     training_time_seconds: float
     num_parameters: int
     run_id: str
-    regression_vs_best: float   # delta from best model (0.0 for the best itself)
+    regression_vs_best: float  # delta from best model (0.0 for the best itself)
 
 
 @dataclass
 class SummaryReport:
     """Aggregated report across all registered experiment runs."""
+
     total_runs: int
     best_run: RunSummary | None
     worst_run: RunSummary | None
     average_accuracy: float
-    accuracy_std: float          # standard deviation (0.0 if single run)
-    runs: list[RunSummary] = field(default_factory=list)   # sorted best-first
+    accuracy_std: float  # standard deviation (0.0 if single run)
+    runs: list[RunSummary] = field(default_factory=list)  # sorted best-first
 
     def to_dict(self) -> dict:
         return {
@@ -52,6 +63,11 @@ class SummaryReport:
         }
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
 def generate_summary_report(registry: ModelRegistry) -> SummaryReport:
     """
     Build a SummaryReport from all entries in the registry.
@@ -59,7 +75,7 @@ def generate_summary_report(registry: ModelRegistry) -> SummaryReport:
     Entries are sorted best-first by test_accuracy.
     Returns a SummaryReport with empty/zero fields if registry is empty.
     """
-    entries = registry.get_all_entries()   # already sorted best-first
+    entries = registry.get_all_entries()  # already sorted best-first
 
     if not entries:
         return SummaryReport(
@@ -72,7 +88,7 @@ def generate_summary_report(registry: ModelRegistry) -> SummaryReport:
         )
 
     accuracies = [e.test_accuracy for e in entries]
-    best_accuracy = accuracies[0]   # entries are best-first
+    best_accuracy = accuracies[0]  # entries are best-first
 
     runs: list[RunSummary] = []
     for rank, entry in enumerate(entries, start=1):
@@ -123,17 +139,17 @@ def print_summary_table(report: SummaryReport) -> None:
 
     # ---- Runs table ----
     table = Table(show_header=True, header_style="bold cyan", expand=False)
-    table.add_column("#",       justify="right",  style="dim",  width=3)
-    table.add_column("Experiment",                              min_width=16)
-    table.add_column("Model",                                   min_width=14)
-    table.add_column("Acc",     justify="right",  style="bold", width=7)
-    table.add_column("F1",      justify="right",               width=7)
-    table.add_column("Val Acc", justify="right",               width=8)
-    table.add_column("LR",      justify="right",               width=7)
-    table.add_column("Batch",   justify="right",               width=6)
-    table.add_column("Epochs",  justify="right",               width=7)
-    table.add_column("Time (s)", justify="right",              width=9)
-    table.add_column("Δ Best",  justify="right",               width=8)
+    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("Experiment", min_width=16)
+    table.add_column("Model", min_width=14)
+    table.add_column("Acc", justify="right", style="bold", width=7)
+    table.add_column("F1", justify="right", width=7)
+    table.add_column("Val Acc", justify="right", width=8)
+    table.add_column("LR", justify="right", width=7)
+    table.add_column("Batch", justify="right", width=6)
+    table.add_column("Epochs", justify="right", width=7)
+    table.add_column("Time (s)", justify="right", width=9)
+    table.add_column("Δ Best", justify="right", width=8)
 
     for run in report.runs:
         is_best = run.rank == 1
@@ -168,6 +184,11 @@ def save_summary_json(report: SummaryReport, path: str) -> None:
     with open(path, "w") as f:
         json.dump(report.to_dict(), f, indent=2, default=str)
     _console.print(f"[dim]Summary saved to {path}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
 def _entry_to_run_summary(

@@ -4,6 +4,7 @@ Device detection and reproducibility utilities.
 Central place for all device/seed logic so every module gets
 consistent behaviour — especially important for MPS on Apple Silicon.
 """
+
 from __future__ import annotations
 
 import os

@@ -18,8 +18,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.1",
     "pytest>=9.0.2",
     "pytest-cov>=7.1.0",
+    "ruff>=0.15.8",
 ]
 
 [tool.pytest.ini_options]
@@ -40,3 +42,37 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/pipeline"]
 
+# ---------------------------------------------------------------------------
+# Ruff — linter + formatter
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (unused imports, undefined names, etc.)
+    "I",    # isort (import ordering)
+    "UP",   # pyupgrade (modernise Python syntax)
+    "B",    # flake8-bugbear (likely bugs and design issues)
+    "SIM",  # flake8-simplify (simplifiable code patterns)
+]
+ignore = [
+    "E501",   # line too long — ruff format handles line length
+    "SIM108", # ternary operator — sometimes less readable than if/else
+    "B008",   # do not perform function calls in default arguments
+]
+# Allow intentional noqa suppressions already in the codebase:
+#   PLC0415 — import-outside-toplevel (used in Ray workers intentionally)
+#   BLE001  — blind exception catch (used in Ray error handler intentionally)
+
+[tool.ruff.lint.isort]
+known-first-party = ["pipeline"]
+force-sort-within-sections = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

@@ -1,21 +1,49 @@
+"""
+Model Registry — tracks every completed run and maintains the best model.
+
+Backed by a single `registry.json` file so it persists across runs and
+is human-readable without needing a running server.
+
+Format of registry.json:
+{
+  "best_run_id": "abc123",
+  "entries": [
+    {
+      "run_id": "abc123",
+      "experiment_name": "baseline",
+      "model_name": "distilbert-base-uncased",
+      "checkpoint_path": "checkpoints/baseline/best",
+      "test_accuracy": 0.92,
+      "val_accuracy": 0.91,
+      "config_snapshot": { ... },
+      "registered_at": "2026-04-01T12:00:00"
+    },
+    ...
+  ]
+}
+"""
+
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 import json
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 
 
 @dataclass
 class RegistryEntry:
-    run_id: str
+    """Immutable record of one completed training + evaluation run."""
+
+    run_id: str  # MLflow run ID
     experiment_name: str
-    model_name: str
-    checkpoint_path: str
+    model_name: str  # HuggingFace model ID or "custom"
+    checkpoint_path: str  # Path to saved model weights
     test_accuracy: float
     val_accuracy: float
-    config_snapshot: dict
-    registered_at: str
+    config_snapshot: dict  # serialised PipelineConfig.to_flat_dict()
+    registered_at: str  # ISO-8601 timestamp (UTC)
+    # Optional rich fields populated when available
     test_f1: float = 0.0
     total_training_time_seconds: float = 0.0
     num_parameters: int = 0
@@ -24,7 +52,8 @@ class RegistryEntry:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "RegistryEntry":
+    def from_dict(cls, d: dict) -> RegistryEntry:
+        # Pop unknown keys gracefully (forward compatibility)
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
         return cls(**{k: v for k, v in d.items() if k in known})
 
@@ -49,6 +78,10 @@ class ModelRegistry:
         # Always write to disk on init so the file exists after construction
         if not self._path.exists():
             self._save()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def register(
         self,
@@ -77,16 +110,14 @@ class ModelRegistry:
             test_accuracy=test_accuracy,
             val_accuracy=val_accuracy,
             config_snapshot=config_snapshot,
-            registered_at=datetime.now(timezone.utc).isoformat(),
+            registered_at=datetime.now(UTC).isoformat(),
             test_f1=test_f1,
             total_training_time_seconds=total_training_time_seconds,
             num_parameters=num_parameters,
         )
 
         # Remove any prior entry with the same run_id (re-registration)
-        self._data["entries"] = [
-            e for e in self._data["entries"] if e["run_id"] != run_id
-        ]
+        self._data["entries"] = [e for e in self._data["entries"] if e["run_id"] != run_id]
         self._data["entries"].append(entry.to_dict())
 
         # Update best if this run beats current best
@@ -123,9 +154,7 @@ class ModelRegistry:
     def remove(self, run_id: str) -> bool:
         """Remove an entry by run_id. Returns True if found and removed."""
         before = len(self._data["entries"])
-        self._data["entries"] = [
-            e for e in self._data["entries"] if e["run_id"] != run_id
-        ]
+        self._data["entries"] = [e for e in self._data["entries"] if e["run_id"] != run_id]
         removed = len(self._data["entries"]) < before
         if removed:
             if self._data.get("best_run_id") == run_id:
@@ -136,6 +165,10 @@ class ModelRegistry:
 
     def __len__(self) -> int:
         return len(self._data["entries"])
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
 
     def _load(self) -> dict:
         if self._path.exists():

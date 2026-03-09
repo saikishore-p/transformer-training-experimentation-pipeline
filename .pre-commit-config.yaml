@@ -1,0 +1,19 @@
+repos:
+  # Ruff — lint and format (replaces flake8, isort, black)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.8
+    hooks:
+      - id: ruff               # lint: catches errors, unused imports, style issues
+        args: [--fix]          # auto-fix what can be fixed; fail if anything unfixable remains
+      - id: ruff-format        # format: consistent style (quotes, indentation, line length)
+
+  # Standard file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace   # remove trailing spaces
+      - id: end-of-file-fixer     # ensure files end with a newline
+      - id: check-yaml            # validate YAML syntax (catches broken configs)
+      - id: check-toml            # validate TOML syntax (catches broken pyproject.toml)
+      - id: check-merge-conflict  # prevent accidentally committing merge conflict markers
+      - id: debug-statements      # catch stray breakpoint() / pdb.set_trace() calls

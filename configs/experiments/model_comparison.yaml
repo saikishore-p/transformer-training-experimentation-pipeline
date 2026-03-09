@@ -1,3 +1,7 @@
+# Model comparison sweep — DistilBERT vs DistilRoBERTa on same task/data
+# Compares two architectures under identical training conditions.
+# Run with: uv run python scripts/run_sweep.py --sweep configs/experiments/model_comparison.yaml
+
 - model:
     type: huggingface
     name: distilbert-base-uncased

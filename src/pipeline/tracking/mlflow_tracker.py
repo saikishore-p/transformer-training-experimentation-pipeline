@@ -1,10 +1,28 @@
+"""
+MLflow experiment tracking integration.
+
+MLflowTracker is a context manager that wraps a single MLflow run.
+Every pipeline run opens one tracker, logs everything through it,
+and closes cleanly on exit — even if training raises an exception.
+
+Usage:
+    with MLflowTracker(config.experiment) as tracker:
+        tracker.log_params(config.to_flat_dict())
+        trainer = Trainer(..., tracker=tracker)
+        result = trainer.train()
+        tracker.log_metrics({"test_accuracy": 0.92})
+        tracker.log_artifact("eval_report.json")
+"""
+
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
+import tempfile
 from typing import Any
+
 import mlflow
+
 from pipeline.config import ExperimentConfig
 
 
@@ -27,7 +45,11 @@ class MLflowTracker:
         self._run_name = run_name or config.name
         self._run: mlflow.ActiveRun | None = None
 
-    def __enter__(self) -> "MLflowTracker":
+    # ------------------------------------------------------------------
+    # Context manager
+    # ------------------------------------------------------------------
+
+    def __enter__(self) -> MLflowTracker:
         mlflow.set_tracking_uri(self._config.mlflow_tracking_uri)
         mlflow.set_experiment(self._config.mlflow_experiment_name)
         self._run = mlflow.start_run(run_name=self._run_name)
@@ -39,6 +61,10 @@ class MLflowTracker:
         mlflow.end_run(status=status)
         self._run = None
         return False  # do not suppress exceptions
+
+    # ------------------------------------------------------------------
+    # Logging helpers
+    # ------------------------------------------------------------------
 
     def log_params(self, params: dict[str, Any]) -> None:
         """
@@ -78,7 +104,9 @@ class MLflowTracker:
         mlflow.log_artifact(tmp_path, artifact_path="")
         # Rename artifact inside MLflow by logging with the desired name
         # (MLflow doesn't support rename; re-log with target name)
-        import shutil, os
+        import os
+        import shutil
+
         target = Path(tmp_path).parent / artifact_filename
         shutil.copy(tmp_path, target)
         mlflow.log_artifact(str(target))
@@ -92,6 +120,10 @@ class MLflowTracker:
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set multiple string tags at once."""
         mlflow.set_tags(tags)
+
+    # ------------------------------------------------------------------
+    # Introspection
+    # ------------------------------------------------------------------
 
     def get_run_id(self) -> str:
         """Return the MLflow run ID for the active run."""

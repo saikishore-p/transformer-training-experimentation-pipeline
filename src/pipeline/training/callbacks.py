@@ -4,6 +4,7 @@ Training callbacks: EarlyStopping and CheckpointSaver.
 Callbacks are called by the Trainer at the end of each epoch.
 They are stateful objects — create a fresh instance per training run.
 """
+
 from __future__ import annotations
 
 from pipeline.models.base import ModelWrapper

@@ -1,27 +1,72 @@
+"""
+Ray-based parallel experiment orchestration.
+
+Runs multiple experiment configs concurrently, each in its own Ray worker
+process. Every worker executes the full pipeline independently and logs to
+the shared MLflow store.
+
+MPS (Apple Silicon) constraints
+--------------------------------
+- MPS context is per-process, not shared. Each Ray worker initialises its
+  own device via get_device() inside the remote function.
+- Concurrency is capped at max_concurrent (default 2) to avoid memory
+  pressure when multiple models are resident simultaneously on unified memory.
+- Workers are CPU-only by Ray's resource model; MPS is acquired automatically
+  inside run_pipeline() via get_device().
+
+Sweep YAML format
+-----------------
+A sweep config file is a YAML list of partial PipelineConfig dicts.
+Each entry is deep-merged over a base config so you only specify what changes:
+
+    - experiment:
+        name: lr_sweep_1e5
+      training:
+        learning_rate: 1e-5
+    - experiment:
+        name: lr_sweep_2e5
+      training:
+        learning_rate: 2e-5
+"""
+
 from __future__ import annotations
 
-import time
-from typing import Any
 import ray
-from pipeline.config import PipelineConfig
-
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
-import yaml
+
+from pipeline.config import PipelineConfig
 
 _console = Console()
 
+
+# ---------------------------------------------------------------------------
+# Ray remote task
+# ---------------------------------------------------------------------------
+
+
 @ray.remote(num_cpus=2)
 def _run_experiment_remote(config_dict: dict, registry_path: str) -> dict:
+    """
+    Ray remote function — executes one full pipeline run in a worker process.
+
+    Receives config as a plain dict (must be pickle-serialisable for Ray).
+    Returns a summary dict or an error dict on failure.
+
+    Note: import run_pipeline inside the function so Ray workers initialise
+    their own module state (device detection, random seeds) independently.
+    """
     try:
-        from pipeline.config import PipelineConfig
-        from pipeline.runner import run_pipeline
+        # Imports inside the remote function ensure each worker gets its own
+        # module-level state (important for MPS context and random seeds).
+        from pipeline.config import PipelineConfig  # noqa: PLC0415
+        from pipeline.runner import run_pipeline  # noqa: PLC0415
 
         config = PipelineConfig(**config_dict)
         return run_pipeline(config, registry_path=registry_path)
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {
             "run_id": None,
             "experiment_name": config_dict.get("experiment", {}).get("name", "unknown"),
@@ -33,16 +78,42 @@ def _run_experiment_remote(config_dict: dict, registry_path: str) -> dict:
         }
 
 
+# ---------------------------------------------------------------------------
+# Public sweep runner
+# ---------------------------------------------------------------------------
+
+
 def run_sweep(
     configs: list[PipelineConfig],
     registry_path: str,
     max_concurrent: int = 2,
 ) -> list[dict]:
+    """
+    Run a list of PipelineConfigs in parallel using Ray.
+
+    Each config becomes one Ray task. Tasks are submitted in batches of
+    `max_concurrent` to respect MPS memory limits on Apple Silicon.
+
+    Args:
+        configs:        List of fully-validated PipelineConfig objects.
+        registry_path:  Shared registry.json path; all workers write to it.
+                        Note: concurrent writes are safe because each worker
+                        re-reads before writing (file lock via JSON overwrite).
+        max_concurrent: Maximum number of parallel Ray workers. Default 2.
+
+    Returns:
+        List of result dicts (one per config), in submission order.
+        Each dict has: run_id, experiment_name, test_accuracy, test_f1,
+                       regression_detected, status (+ error if failed).
+    """
     ray.init(ignore_reinit_error=True)
+
     total = len(configs)
     results: list[dict | None] = [None] * total
 
-    _console.print(f"\n[bold]Starting sweep: {total} experiments, max_concurrent={max_concurrent}[/bold]")
+    _console.print(
+        f"\n[bold]Starting sweep: {total} experiments, max_concurrent={max_concurrent}[/bold]"
+    )
 
     with Progress(
         SpinnerColumn(),
@@ -54,11 +125,13 @@ def run_sweep(
     ) as progress:
         task = progress.add_task("Running experiments…", total=total)
 
-        pending: list[tuple[int, ray.ObjectRef]] = []
+        # Submit in batches to bound memory usage
+        pending: list[tuple[int, ray.ObjectRef]] = []  # (original_index, ref)
         config_iter = iter(enumerate(configs))
         completed = 0
 
         def _submit_next() -> bool:
+            """Submit the next config. Returns True if submitted, False if exhausted."""
             try:
                 idx, cfg = next(config_iter)
                 ref = _run_experiment_remote.remote(cfg.model_dump(), registry_path)
@@ -67,6 +140,7 @@ def run_sweep(
             except StopIteration:
                 return False
 
+        # Fill the initial batch
         for _ in range(min(max_concurrent, total)):
             _submit_next()
 
@@ -104,15 +178,35 @@ def run_sweep(
     return final
 
 
-def load_sweep_configs(sweep_path: str, base_config: PipelineConfig | None = None) -> list[PipelineConfig]:
+# ---------------------------------------------------------------------------
+# Sweep config loading
+# ---------------------------------------------------------------------------
+
+
+def load_sweep_configs(
+    sweep_path: str, base_config: PipelineConfig | None = None
+) -> list[PipelineConfig]:
+    """
+    Load a sweep YAML file (list of partial config dicts) and return
+    a list of fully-validated PipelineConfig objects.
+
+    Each entry in the sweep YAML is deep-merged over `base_config`
+    (or over PipelineConfig defaults if no base is provided).
+
+    Args:
+        sweep_path:   Path to sweep YAML file.
+        base_config:  Optional base config to merge over.
+
+    Returns:
+        List of PipelineConfig, one per sweep entry.
+    """
+    import yaml  # noqa: PLC0415
 
     with open(sweep_path) as f:
         entries: list[dict] = yaml.safe_load(f)
 
     if not isinstance(entries, list):
-        raise ValueError(
-            f"Sweep YAML must be a list of config dicts, got {type(entries).__name__}"
-        )
+        raise ValueError(f"Sweep YAML must be a list of config dicts, got {type(entries).__name__}")
 
     base_dict: dict = base_config.model_dump() if base_config else {}
     configs = []
@@ -123,6 +217,10 @@ def load_sweep_configs(sweep_path: str, base_config: PipelineConfig | None = Non
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
+    """
+    Recursively merge `override` into a copy of `base`.
+    Nested dicts are merged; all other values are replaced.
+    """
     result = dict(base)
     for key, val in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(val, dict):
@@ -130,6 +228,12 @@ def _deep_merge(base: dict, override: dict) -> dict:
         else:
             result[key] = val
     return result
+
+
+# ---------------------------------------------------------------------------
+# Console helpers
+# ---------------------------------------------------------------------------
+
 
 def _print_sweep_summary(results: list[dict]) -> None:
     _console.print("\n[bold]Sweep Complete — Results[/bold]")
