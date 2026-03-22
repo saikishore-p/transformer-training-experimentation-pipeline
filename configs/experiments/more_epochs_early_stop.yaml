@@ -1,0 +1,46 @@
+# Experiment: More Epochs with Early Stopping
+#
+# What we're testing: Does training for longer help? Does early stopping protect us?
+#
+# With only 2,000 training samples the model can start memorising the training
+# data after a few epochs (overfitting). Symptoms:
+#   - train_loss keeps dropping
+#   - val_loss stops dropping or starts RISING
+#   - val_accuracy plateaus or gets worse
+#
+# early_stopping_patience=3 means: if val_loss doesn't improve for 3 consecutive
+# epochs, stop training. This prevents wasting compute and avoids overfitting.
+#
+# What to watch for in MLflow:
+#   - The run will stop BEFORE epoch 8 if the model stops improving.
+#   - Check "best_epoch" in the run summary — if it's epoch 2 or 3, training
+#     after that point was hurting the model.
+#   - Compare val_loss curve to baseline: does it start rising after epoch 3?
+#
+# Run: uv run python scripts/run_experiment.py --config configs/experiments/more_epochs_early_stop.yaml
+
+model:
+  type: huggingface
+  name: distilbert-base-uncased
+
+training:
+  learning_rate: 2e-5
+  batch_size: 16
+  epochs: 8                        # ← give it up to 8 epochs
+  optimizer: adamw
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  early_stopping_patience: 3      # ← but stop if no improvement for 3 epochs
+  seed: 42
+
+data:
+  dataset_name: ag_news
+  max_length: 128
+  subsample_train: 2000
+  subsample_val: 400
+
+experiment:
+  name: more_epochs_early_stop
+  output_dir: checkpoints
+  mlflow_tracking_uri: mlruns
+  mlflow_experiment_name: transformer-pipeline

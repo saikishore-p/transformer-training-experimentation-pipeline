@@ -1,0 +1,41 @@
+# Experiment: High Learning Rate
+#
+# What we're testing: What happens when LR is 5x the baseline?
+#
+# Hypothesis: LR=1e-4 is too aggressive for fine-tuning a pre-trained transformer.
+# The large gradient steps may overwrite the pre-trained representations the model
+# already learned, causing unstable or worse training.
+#
+# What to watch for in MLflow:
+#   - val_accuracy chart: may spike and drop, or plateau lower than baseline
+#   - train_loss: may decrease fast but val_loss may not follow (overfitting)
+#
+# Compare this run against "baseline" by selecting both in MLflow UI.
+# Typical outcome: worse final accuracy or unstable val_loss curve.
+#
+# Run: uv run python scripts/run_experiment.py --config configs/experiments/high_lr.yaml
+
+model:
+  type: huggingface
+  name: distilbert-base-uncased
+
+training:
+  learning_rate: 1e-4       # ← 5x baseline (2e-5). This is usually too high.
+  batch_size: 16
+  epochs: 3
+  optimizer: adamw
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  seed: 42
+
+data:
+  dataset_name: ag_news
+  max_length: 128
+  subsample_train: 2000
+  subsample_val: 400
+
+experiment:
+  name: high_lr_1e4
+  output_dir: checkpoints
+  mlflow_tracking_uri: mlruns
+  mlflow_experiment_name: transformer-pipeline

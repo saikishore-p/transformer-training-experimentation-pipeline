@@ -1,0 +1,44 @@
+# Experiment: No Warmup
+#
+# What we're testing: Does the learning rate warmup period actually matter?
+#
+# Warmup means: instead of starting training immediately at LR=2e-5, the LR
+# starts near 0 and gradually rises to 2e-5 over the first 10% of training steps.
+#
+# Why warmup matters for transformers: The model starts with pre-trained weights
+# that encode useful language knowledge. If you immediately apply large gradient
+# updates (full LR from step 1), you can "shock" those weights and destroy the
+# pre-trained representations before the model has a chance to adapt.
+#
+# What to watch for in MLflow:
+#   - Compare the train_loss at epoch 1 vs baseline: no-warmup often starts
+#     with higher loss (more instability at the beginning)
+#   - Final accuracy may be similar or slightly lower
+#   - The difference is more pronounced with larger LRs
+#
+# Run: uv run python scripts/run_experiment.py --config configs/experiments/no_warmup.yaml
+
+model:
+  type: huggingface
+  name: distilbert-base-uncased
+
+training:
+  learning_rate: 2e-5
+  batch_size: 16
+  epochs: 3
+  optimizer: adamw
+  weight_decay: 0.01
+  warmup_ratio: 0.0        # ← no warmup (baseline uses 0.1 = 10% warmup)
+  seed: 42
+
+data:
+  dataset_name: ag_news
+  max_length: 128
+  subsample_train: 2000
+  subsample_val: 400
+
+experiment:
+  name: no_warmup
+  output_dir: checkpoints
+  mlflow_tracking_uri: mlruns
+  mlflow_experiment_name: transformer-pipeline

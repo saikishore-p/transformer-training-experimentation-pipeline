@@ -1,0 +1,50 @@
+# Experiment: SGD Optimizer (vs AdamW baseline)
+#
+# What we're testing: Does the optimizer choice matter for fine-tuning transformers?
+#
+# AdamW is the de-facto standard for transformers. SGD (Stochastic Gradient Descent)
+# is the classic optimizer — it applies the same learning rate to every parameter and
+# has no adaptive moment estimation.
+#
+# SGD typically needs:
+#   - A much higher learning rate (0.01–0.1 vs 2e-5 for AdamW)
+#   - More epochs to converge
+#   - Careful tuning
+#
+# The learning rate of 0.01 here is a reasonable starting point for SGD on this task.
+# Note: even with this tuning, SGD almost always performs worse than AdamW for
+# transformer fine-tuning. The goal of this experiment is to see *why* AdamW was
+# invented, not to beat the baseline.
+#
+# What to watch for in MLflow:
+#   - val_accuracy at epoch 1: SGD is usually much lower (slower convergence)
+#   - Learning curve shape: SGD may show more "zigzag" (higher variance)
+#   - Final accuracy: almost certainly lower than AdamW baseline
+#   - This teaches you why optimizer choice matters
+#
+# Run: uv run python scripts/run_experiment.py --config configs/experiments/sgd_optimizer.yaml
+
+model:
+  type: huggingface
+  name: distilbert-base-uncased
+
+training:
+  learning_rate: 0.01          # ← SGD needs much higher LR than AdamW
+  batch_size: 16
+  epochs: 3
+  optimizer: sgd               # ← classic SGD (baseline uses adamw)
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  seed: 42
+
+data:
+  dataset_name: ag_news
+  max_length: 128
+  subsample_train: 2000
+  subsample_val: 400
+
+experiment:
+  name: sgd_optimizer
+  output_dir: checkpoints
+  mlflow_tracking_uri: mlruns
+  mlflow_experiment_name: transformer-pipeline

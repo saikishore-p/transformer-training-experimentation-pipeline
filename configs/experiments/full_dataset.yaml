@@ -1,0 +1,49 @@
+# Experiment: Full Dataset (no subsampling)
+#
+# What we're testing: How much does subsampling hurt accuracy?
+#
+# The baseline uses only 2,000 of the 108,000 available training examples.
+# This was a pragmatic choice for fast experimentation (seconds vs hours).
+# This config uses the full dataset to see the true capability of DistilBERT
+# on AG News and gives you a performance ceiling to compare against.
+#
+# Expected results with full dataset:
+#   - test_accuracy: ~94–95% (vs ~88–92% with 2,000 samples)
+#   - Training time: ~20–30 minutes on MPS (vs ~90 seconds)
+#   - The gap between 2k-sample and full-dataset results shows the value of data
+#
+# What to watch for in MLflow:
+#   - Compare test_accuracy: baseline ~0.89, this run ~0.94+
+#   - The accuracy improvement from 2k→108k samples is the "data scaling" effect
+#   - samples_per_second stays similar; total time scales with dataset size
+#
+# IMPORTANT: This run takes ~20–30 minutes on MPS. Only run when you have time.
+# You can interrupt with Ctrl+C; the checkpoint from the last completed epoch
+# is saved to checkpoints/full_dataset/best/
+#
+# Run: uv run python scripts/run_experiment.py --config configs/experiments/full_dataset.yaml
+
+model:
+  type: huggingface
+  name: distilbert-base-uncased
+
+training:
+  learning_rate: 2e-5
+  batch_size: 16
+  epochs: 3
+  optimizer: adamw
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  seed: 42
+
+data:
+  dataset_name: ag_news
+  max_length: 128
+  # subsample_train and subsample_val are intentionally omitted
+  # so the full 108,000 training / 12,000 val examples are used
+
+experiment:
+  name: full_dataset
+  output_dir: checkpoints
+  mlflow_tracking_uri: mlruns
+  mlflow_experiment_name: transformer-pipeline
