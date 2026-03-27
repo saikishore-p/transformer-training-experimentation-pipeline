@@ -40,5 +40,5 @@ data:
 experiment:
   name: no_warmup
   output_dir: checkpoints
-  mlflow_tracking_uri: mlruns
+  mlflow_tracking_uri: sqlite:///mlflow.db
   mlflow_experiment_name: transformer-pipeline

@@ -16,12 +16,17 @@ MPS note:
     Set FORCE_CPU=1 to run all workers on CPU if MPS causes issues.
 """
 
+# ruff: noqa: E402  — sys.path manipulation must precede local imports in scripts
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
 import sys
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 

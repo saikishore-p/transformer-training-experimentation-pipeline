@@ -53,7 +53,7 @@ class DataConfig(BaseModel):
 class ExperimentConfig(BaseModel):
     name: str
     output_dir: str = "checkpoints"
-    mlflow_tracking_uri: str = "mlruns"
+    mlflow_tracking_uri: str = "sqlite:///mlflow.db"
     mlflow_experiment_name: str = "transformer-pipeline"
 
 

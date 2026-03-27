@@ -18,7 +18,7 @@
   experiment:
     name: model_cmp_distilbert
     output_dir: checkpoints
-    mlflow_tracking_uri: mlruns
+    mlflow_tracking_uri: sqlite:///mlflow.db
     mlflow_experiment_name: model-comparison
 
 - model:
@@ -37,5 +37,5 @@
   experiment:
     name: model_cmp_distilroberta
     output_dir: checkpoints
-    mlflow_tracking_uri: mlruns
+    mlflow_tracking_uri: sqlite:///mlflow.db
     mlflow_experiment_name: model-comparison

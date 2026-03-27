@@ -6,11 +6,16 @@ Usage:
     uv run python scripts/run_experiment.py --config configs/experiments/baseline.yaml --registry checkpoints/registry.json
 """
 
+# ruff: noqa: E402  — sys.path manipulation must precede local imports in scripts
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 import sys
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Ensure src/ is on the path when running as a script (uv handles this via
 # pythonpath in pyproject.toml, but explicit is safer for direct invocation)
